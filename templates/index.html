@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Detection Login</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            margin-top: 30px;
+        }
+        #video-container {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .btn-custom {
+            background-color: #ff5e62;
+            color: white;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: 0.3s;
+        }
+        .btn-custom:hover {
+            background-color: #ff9966;
+        }
+        .code-display {
+            font-size: 1.2rem;
+            background-color: white;
+            color: black;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container text-center">
+    <h2 class="mb-4">Bubble Detection Login</h2>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <h5>Live Detection</h5>
+            <img id="video-container" src="{{ url_for('video_feed') }}" class="img-fluid">
+        </div>
+
+        <div class="col-md-6">
+            <h5>Generated Code</h5>
+            <div id="latest-code" class="code-display">Waiting for detection...</div>
+            <button class="btn btn-custom mt-3" onclick="startDetection()">Start Detection</button>
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <h5>Login</h5>
+        <input type="text" id="codeInput" class="form-control mb-2" placeholder="Enter Code">
+        <button class="btn btn-custom" onclick="login()">Login</button>
+        <p id="loginMessage" class="mt-2"></p>
+    </div>
+</div>
+
+<script>
+    function startDetection() {
+        axios.post('/start_detection')
+            .then(response => {
+                const latestCode = response.data.latest_code;
+                document.getElementById('latest-code').textContent = latestCode ? latestCode : "No valid code generated.";
+            })
+            .catch(error => console.error(error));
+    }
+
+    function login() {
+        const code = document.getElementById('codeInput').value;
+        axios.post('/login', { code: code })
+            .then(response => {
+                document.getElementById('loginMessage').textContent = response.data.message;
+                document.getElementById('loginMessage').style.color = "lime";
+            })
+            .catch(error => {
+                document.getElementById('loginMessage').textContent = "Invalid Code!";
+                document.getElementById('loginMessage').style.color = "red";
+            });
+    }
+</script>
+
+</body>
+</html>
