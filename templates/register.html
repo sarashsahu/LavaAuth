@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Bubble Detection - Register</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      font-family: 'Arial', sans-serif;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .register-card {
+      background-color: rgba(255, 255, 255, 0.1);
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.3);
+      width: 100%;
+      max-width: 400px;
+    }
+    .btn-custom {
+      background-color: #ff5e62;
+      color: white;
+      font-weight: bold;
+      border-radius: 5px;
+      transition: 0.3s;
+    }
+    .btn-custom:hover {
+      background-color: #ff9966;
+    }
+    #registerMessage {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    a {
+      color: #ffd6d6;
+      text-decoration: underline;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="register-card text-center">
+  <h3 class="mb-4">Register</h3>
+
+  <input type="text" id="name" class="form-control mb-3" placeholder="Enter Name" required>
+  <input type="tel" id="phone" class="form-control mb-3" placeholder="Enter Phone Number" required>
+
+  <button class="btn btn-custom w-100 mb-2" onclick="register()">Register</button>
+  <p id="registerMessage"></p>
+
+  <a href="/">Already have an account? Login</a>
+</div>
+
+<script>
+function register() {
+    const name = document.getElementById('name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+
+    const msg = document.getElementById('registerMessage');
+    msg.textContent = "";
+    
+    if (!name || !phone) {
+        msg.textContent = "Please fill out all fields.";
+        msg.style.color = "yellow";
+        return;
+    }
+
+    axios.post('/register', {
+        name: name,
+        phone: phone
+    })
+    .then(response => {
+        msg.textContent = response.data.message || "Registration successful!";
+        msg.style.color = "lime";
+    })
+    .catch(error => {
+        msg.textContent = error.response?.data?.error || "Registration failed.";
+        msg.style.color = "red";
+    });
+}
+</script>
+
+</body>
+</html>

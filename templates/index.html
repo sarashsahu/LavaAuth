@@ -1,25 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Bubble Detection Login</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         body {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             font-family: 'Arial', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .container {
-            margin-top: 30px;
-        }
-        #video-container {
+
+        .login-card {
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.3);
             width: 100%;
-            border-radius: 10px;
-            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+            max-width: 400px;
         }
+
         .btn-custom {
             background-color: #ff5e62;
             color: white;
@@ -27,58 +33,79 @@
             border-radius: 5px;
             transition: 0.3s;
         }
+
         .btn-custom:hover {
             background-color: #ff9966;
         }
+
         .code-display {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             background-color: white;
             color: black;
-            padding: 10px;
+            padding: 8px;
             border-radius: 5px;
+            margin-bottom: 15px;
             text-align: center;
+        }
+
+        #loginMessage {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .btn-secondary-custom {
+            background-color: transparent;
+            border: 2px solid #fff;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .btn-secondary-custom:hover {
+            background-color: #fff;
+            color: #764ba2;
         }
     </style>
 </head>
 <body>
 
-<div class="container text-center">
-    <h2 class="mb-4">Bubble Detection Login</h2>
-    
-    <div class="row">
-        <div class="col-md-6">
-            <h5>Live Detection</h5>
-            <img id="video-container" src="{{ url_for('video_feed') }}" class="img-fluid">
-        </div>
+<div class="login-card text-center">
+    <h3 class="mb-4">Login with Bubble Detection</h3>
 
-        <div class="col-md-6">
-            <h5>Generated Code</h5>
-            <div id="latest-code" class="code-display">Waiting for detection...</div>
-            <button class="btn btn-custom mt-3" onclick="startDetection()">Start Detection</button>
-        </div>
-    </div>
+    <input type="tel" id="phoneInput" class="form-control mb-3" placeholder="Enter Phone Number">
+    <button class="btn btn-custom w-100 mb-3" onclick="startDetection()">Generate Code</button>
 
-    <div class="mt-4">
-        <h5>Login</h5>
-        <input type="text" id="codeInput" class="form-control mb-2" placeholder="Enter Code">
-        <button class="btn btn-custom" onclick="login()">Login</button>
-        <p id="loginMessage" class="mt-2"></p>
-    </div>
+    <input type="text" id="codeInput" class="form-control mb-3" placeholder="Enter Code">
+    <button class="btn btn-custom w-100" onclick="login()">Login</button>
+
+    <p id="loginMessage"></p>
+    <button class="btn btn-secondary-custom w-100 mt-3" onclick="window.location.href='/register'">Register</button>
 </div>
 
 <script>
     function startDetection() {
-        axios.post('/start_detection')
+        const phone = document.getElementById('phoneInput').value.trim();
+        if (!phone) {
+            document.getElementById('loginMessage').textContent = "Please enter your phone number.";
+            document.getElementById('loginMessage').style.color = "yellow";
+            return;
+        }
+
+        document.getElementById('loginMessage').textContent = "Detecting...";
+        axios.post('/start_detection', { phone: phone })
             .then(response => {
-                const latestCode = response.data.latest_code;
-                document.getElementById('latest-code').textContent = latestCode ? latestCode : "No valid code generated.";
+                document.getElementById('loginMessage').textContent = "Code sent to your phone.";
+                document.getElementById('codeInput').focus();
             })
-            .catch(error => console.error(error));
+            .catch(error => {
+                document.getElementById('loginMessage').textContent = "Detection failed.";
+                document.getElementById('loginMessage').style.color = "red";
+            });
     }
 
     function login() {
+        const phone = document.getElementById('phoneInput').value;
         const code = document.getElementById('codeInput').value;
-        axios.post('/login', { code: code })
+        axios.post('/login', { phone: phone, code: code })
             .then(response => {
                 document.getElementById('loginMessage').textContent = response.data.message;
                 document.getElementById('loginMessage').style.color = "lime";
