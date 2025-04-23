@@ -1,21 +1,23 @@
+# lava_lamp_auth/app.py
+
 from flask import Flask, render_template, request, jsonify
 from twilio.rest import Client
 import sqlite3
 import hashlib
-import time
-from datetime import datetime
+import cv2
 import os
 
 app = Flask(__name__)
 
-# Twilio credentials
-TWILIO_SID = 'ACccf75ffdc544a3a64169f1858cb3ecb7'
-TWILIO_AUTH_TOKEN = '9d5eba9d5b8f0b339a9519b997138b67'
-TWILIO_PHONE_NUMBER = '+917797715343'
-
+# Twilio credentials (replace with your actual ones)
+TWILIO_SID = 'your_sid_here'
+TWILIO_AUTH_TOKEN = 'your_auth_token_here'
+TWILIO_PHONE_NUMBER = '+91xxxxxxxxxx'
 client = Client(TWILIO_SID, TWILIO_AUTH_TOKEN)
 
-# Initialize the database
+camera = cv2.VideoCapture(0)
+
+# Database setup
 def init_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
@@ -24,8 +26,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             phone TEXT UNIQUE NOT NULL,
-            code TEXT,
-            code_expiry REAL
+            codes TEXT
         )
     ''')
     conn.commit()
@@ -33,7 +34,8 @@ def init_db():
 
 init_db()
 
-# Database operations
+# Helpers for database
+
 def get_user_by_phone(phone):
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
@@ -45,34 +47,49 @@ def get_user_by_phone(phone):
 def add_user(name, phone):
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO users (name, phone) VALUES (?, ?)', (name, phone))
+    cursor.execute('INSERT INTO users (name, phone, codes) VALUES (?, ?, ?)', (name, phone, ""))
     conn.commit()
     conn.close()
 
-def update_user_code(phone, code):
-    expiry = time.time() + 300  # 5 minutes from now
+def update_user_codes(phone, codes):
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
-    cursor.execute('UPDATE users SET code = ?, code_expiry = ? WHERE phone = ?', (code, expiry, phone))
+    cursor.execute('UPDATE users SET codes = ? WHERE phone = ?', (codes, phone))
     conn.commit()
     conn.close()
 
-# Routes
+# Generate code from camera
+
+def generate_code_from_frame():
+    ret, frame = camera.read()
+    if not ret:
+        return "ERROR"
+    small = cv2.resize(frame, (64, 64))
+    encoded = small.tobytes()
+    code = hashlib.sha256(encoded).hexdigest()[:8]
+    return code
+
 @app.route('/')
-def home():
+def index():
     return render_template('index.html')
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/register_page')
+def register_page():
+    return render_template('register.html')
+
+@app.route('/visual_code')
+def visual_code():
+    return render_template('visual_code.html')
+
+@app.route('/live_code')
+def live_code():
+    code = generate_code_from_frame()
+    return jsonify({"code": code})
+
+@app.route('/register', methods=['POST'])
 def register():
-    if request.method == 'GET':
-        return render_template('register.html')
-
-    data = request.get_json()
-    name = data.get('name')
-    phone = data.get('phone')
-
-    if not name or not phone:
-        return jsonify({"error": "Name and phone number are required."}), 400
+    name = request.json.get('name')
+    phone = request.json.get('phone')
 
     if get_user_by_phone(phone):
         return jsonify({"error": "Phone number already registered."}), 400
@@ -83,7 +100,6 @@ def register():
 @app.route('/start_detection', methods=['POST'])
 def start_detection():
     phone = request.json.get("phone")
-
     if not phone:
         return jsonify({"error": "Phone number is required."}), 400
 
@@ -91,8 +107,8 @@ def start_detection():
     if not user:
         return jsonify({"error": "User not registered."}), 400
 
-    code = generate_code(phone)
-    update_user_code(phone, code)
+    code = generate_code_from_frame()
+    update_user_codes(phone, code)
 
     try:
         client.messages.create(
@@ -101,7 +117,8 @@ def start_detection():
             to=phone
         )
     except Exception as e:
-        return jsonify({"error": "Failed to send SMS."}), 500
+        print("SMS failed:", e)
+        return jsonify({"error": "Failed to send SMS"}), 500
 
     return jsonify({"message": "Code sent successfully."})
 
@@ -109,27 +126,18 @@ def start_detection():
 def login():
     data = request.get_json()
     phone = data.get('phone')
-    code = data.get('code')
-
-    if not phone or not code:
-        return jsonify({"error": "Phone and code are required."}), 400
+    entered_code = data.get('code')
 
     user = get_user_by_phone(phone)
     if not user:
         return jsonify({"error": "User not found."}), 404
 
-    stored_code = user[3]
-    expiry = user[4]
-
-    if code == stored_code and time.time() < expiry:
+    stored_codes = user[3]
+    if entered_code in stored_codes.split(','):
         return jsonify({"message": "Login successful!"})
     else:
-        return jsonify({"error": "Invalid or expired code."}), 400
-
-def generate_code(phone):
-    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    hash_input = phone + current_datetime
-    return hashlib.sha256(hash_input.encode()).hexdigest()[:6]
+        return jsonify({"error": "Invalid code."}), 400
 
 if __name__ == '__main__':
     app.run(debug=True)
+

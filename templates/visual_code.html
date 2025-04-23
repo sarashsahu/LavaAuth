@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lava Lamp Code Generator</title>
+  <style>
+    body {
+      background: black;
+      color: lime;
+      text-align: center;
+      font-family: monospace;
+    }
+    video {
+      width: 80%;
+      border: 2px solid lime;
+      margin-top: 20px;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Generated Code:</h1>
+<h2 id="code">Loading...</h2>
+<video id="lavaFeed" autoplay></video>
+
+<script>
+  // Display webcam feed
+  const video = document.getElementById('lavaFeed');
+  navigator.mediaDevices.getUserMedia({ video: true })
+    .then(stream => video.srcObject = stream)
+    .catch(err => console.error("Camera access denied:", err));
+
+  // Fetch code from server
+  function refreshCode() {
+    fetch('/live_code')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('code').innerText = data.code;
+      });
+  }
+
+  setInterval(refreshCode, 3000); // every 3 seconds
+</script>
+
+</body>
+</html>
