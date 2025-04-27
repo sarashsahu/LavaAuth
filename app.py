@@ -1,4 +1,3 @@
-from flask import Flask, render_template, request, jsonify
 import requests
 import sqlite3
 import hashlib
@@ -6,6 +5,7 @@ import cv2
 import os
 import time
 import urllib.parse
+from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 
 # Load environment variables from .env
@@ -159,6 +159,7 @@ def start_detection():
         global current_code, last_generated_time
 
         if not current_code or (time.time() - last_generated_time > 30):
+            print(f"Generating new code for phone: {phone}")  # Log for debugging
             code = generate_code_from_frame()
             if not code:
                 code = generate_random_code()
@@ -178,7 +179,8 @@ def start_detection():
             print("FAST2SMS_API_KEY not found in environment.")
             return jsonify({"error": "SMS service not configured."}), 500
 
-        url = "https://www.fast2sms.com/dev/bulkV2"
+        # Ensure you're using the updated endpoint for Fast2SMS
+        url = "https://www.fast2sms.com/api/v2/send"  # Updated endpoint
         payload = {
             "sender_id": "TXTIND",
             "message": f"Your login code is: {code}",
@@ -186,6 +188,7 @@ def start_detection():
             "route": "v3",
             "numbers": phone
         }
+
         headers = {
             "authorization": FAST2SMS_API_KEY,
             "Content-Type": "application/x-www-form-urlencoded"
@@ -194,12 +197,20 @@ def start_detection():
         encoded_payload = urllib.parse.urlencode(payload)
         response = requests.post(url, data=encoded_payload, headers=headers)
 
+        print(f"Fast2SMS Response: {response.status_code} - {response.text}")  # Log the response
+
         if response.status_code == 200:
-            print("Fast2SMS Response:", response.json())
+            print("SMS sent successfully.")
             return jsonify({"message": "Code sent successfully."})
         else:
-            print("Fast2SMS Error:", response.text)
-            return jsonify({"error": "Failed to send SMS"}), 500
+            try:
+                error_data = response.json()  # Assuming the response is JSON
+                print(f"Failed to send SMS: {error_data['message']}")
+                return jsonify({"error": f"Failed to send SMS: {error_data.get('message', 'Unknown error')}"}), 500
+            except ValueError:
+                # If the response is not JSON, handle it as plain text
+                print(f"Failed to send SMS, response is not in JSON format: {response.text}")
+                return jsonify({"error": f"Failed to send SMS, response: {response.text}"}), 500
 
     except Exception as e:
         print(f"Error in /start_detection: {e}")
