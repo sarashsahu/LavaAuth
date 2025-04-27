@@ -1,10 +1,15 @@
 from flask import Flask, render_template, request, jsonify
-import requests  # Fast2SMS API integration
+import requests
 import sqlite3
 import hashlib
 import cv2
 import os
 import time
+import urllib.parse
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 app = Flask(__name__)
 
@@ -45,10 +50,10 @@ def add_user(name, phone):
     conn.commit()
     conn.close()
 
-def update_user_codes(phone, codes):
+def update_user_codes(phone, code):
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
-    cursor.execute('UPDATE users SET codes = ? WHERE phone = ?', (codes, phone))
+    cursor.execute('UPDATE users SET codes = ? WHERE phone = ?', (code, phone))
     conn.commit()
     conn.close()
 
@@ -151,27 +156,43 @@ def start_detection():
         if not user:
             return jsonify({"error": "User not registered."}), 400
 
-        code = generate_code_from_frame()
-        if not code:
-            code = generate_random_code()
+        global current_code, last_generated_time
+
+        if not current_code or (time.time() - last_generated_time > 30):
+            code = generate_code_from_frame()
+            if not code:
+                code = generate_random_code()
+            current_code = code
+            last_generated_time = time.time()
+            print(f"Generated new code in /start_detection: {current_code}")
+        else:
+            code = current_code
+            print(f"Reusing cached code in /start_detection: {current_code}")
 
         update_user_codes(phone, code)
 
         # Send SMS using Fast2SMS
+        FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
+
+        if not FAST2SMS_API_KEY:
+            print("FAST2SMS_API_KEY not found in environment.")
+            return jsonify({"error": "SMS service not configured."}), 500
+
         url = "https://www.fast2sms.com/dev/bulkV2"
         payload = {
-            "sender_id": "TXTIND",  # Sender ID you have or can set on Fast2SMS
+            "sender_id": "TXTIND",
             "message": f"Your login code is: {code}",
             "language": "english",
             "route": "v3",
             "numbers": phone
         }
         headers = {
-            "authorization": "JN0uiE3jFzfPUtv6mln78xabh1WGAOpQd2sZHDcXyqMw5VLCIgCXKziyo3lYcs9BArb6M4H2jVtF1mI5",  # Replace with your Fast2SMS API Key
+            "authorization": FAST2SMS_API_KEY,
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
-        response = requests.post(url, data=payload, headers=headers)
+        encoded_payload = urllib.parse.urlencode(payload)
+        response = requests.post(url, data=encoded_payload, headers=headers)
 
         if response.status_code == 200:
             print("Fast2SMS Response:", response.json())
@@ -184,6 +205,37 @@ def start_detection():
         print(f"Error in /start_detection: {e}")
         return jsonify({"error": "Failed to send code"}), 500
 
+@app.route('/admin_users')
+def admin_users():
+    try:
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, name, phone, codes FROM users')
+        users = cursor.fetchall()
+        conn.close()
+
+        return render_template('admin_users.html', users=users)
+
+    except Exception as e:
+        print(f"Error in /admin_users: {e}")
+        return "Error loading admin dashboard."
+
+@app.route('/delete_user', methods=['POST'])
+def delete_user():
+    try:
+        user_id = request.form.get('user_id')
+
+        conn = sqlite3.connect('users.db')
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        conn.commit()
+        conn.close()
+
+        return '<script>window.location.href="/admin_users";</script>'
+    except Exception as e:
+        print(f"Error in /delete_user: {e}")
+        return "Error deleting user."
+
 @app.route('/login', methods=['POST'])
 def login():
     try:
@@ -195,8 +247,9 @@ def login():
         if not user:
             return jsonify({"error": "User not found."}), 404
 
-        stored_codes = user[3]
-        if entered_code in stored_codes.split(','):
+        stored_code = user[3]
+
+        if entered_code == stored_code:
             return jsonify({"message": "Login successful!"})
         else:
             return jsonify({"error": "Invalid code."}), 400
