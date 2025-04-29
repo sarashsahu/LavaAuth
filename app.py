@@ -179,25 +179,19 @@ def start_detection():
             print("FAST2SMS_API_KEY not found in environment.")
             return jsonify({"error": "SMS service not configured."}), 500
 
-        # Ensure you're using the updated endpoint for Fast2SMS
-        url = "https://www.fast2sms.com/api/v2/send"  # Updated endpoint
+        url = "https://www.fast2sms.com/dev/bulkV2"
         payload = {
-            "sender_id": "TXTIND",
+            "authorization": FAST2SMS_API_KEY,
+            "sender_id": "TXTIND",  # Replace with your DLT-approved sender ID
             "message": f"Your login code is: {code}",
-            "language": "english",
-            "route": "v3",
+            "variables_values": "",  # Optional: Add any dynamic variables if needed
+            "route": "dlt",  # Use 'dlt' for transactional messages
             "numbers": phone
         }
 
-        headers = {
-            "authorization": FAST2SMS_API_KEY,
-            "Content-Type": "application/x-www-form-urlencoded"
-        }
+        response = requests.get(url, params=payload)
 
-        encoded_payload = urllib.parse.urlencode(payload)
-        response = requests.post(url, data=encoded_payload, headers=headers)
-
-        print(f"Fast2SMS Response: {response.status_code} - {response.text}")  # Log the response
+        print(f"Fast2SMS Response: {response.status_code} - {response.text}")  # Log response
 
         if response.status_code == 200:
             print("SMS sent successfully.")
@@ -215,7 +209,7 @@ def start_detection():
     except Exception as e:
         print(f"Error in /start_detection: {e}")
         return jsonify({"error": "Failed to send code"}), 500
-
+    
 @app.route('/admin_users')
 def admin_users():
     try:
