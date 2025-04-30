@@ -8,50 +8,71 @@
   <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
   <style>
     body {
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white;
-      font-family: 'Arial', sans-serif;
+      background-color: #000;
+      color: #00ff00;
+      font-family: 'Courier New', Courier, monospace;
       height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
     }
+
     .register-card {
-      background-color: rgba(255, 255, 255, 0.1);
+      background-color: #001100;
       padding: 40px;
-      border-radius: 15px;
-      box-shadow: 0px 8px 20px rgba(0, 0, 0, 0.3);
+      border-radius: 10px;
+      box-shadow: 0 0 20px #00ff0055;
+      border: 1px solid #00ff00;
       width: 100%;
       max-width: 400px;
     }
+
+    .form-control {
+      background-color: #000;
+      color: #00ff00;
+      border: 1px solid #00ff00;
+    }
+
+    .form-control::placeholder {
+      color: #00ff00a0;
+    }
+
     .btn-custom {
-      background-color: #ff5e62;
-      color: white;
+      background-color: #003300;
+      color: #00ff00;
+      border: 1px solid #00ff00;
       font-weight: bold;
-      border-radius: 5px;
       transition: 0.3s;
     }
+
     .btn-custom:hover {
-      background-color: #ff9966;
+      background-color: #004d00;
     }
+
     #registerMessage {
       margin-top: 10px;
       font-weight: bold;
+      color: #00ff00;
     }
+
     a {
-      color: #ffd6d6;
+      color: #00ff00;
       text-decoration: underline;
       font-size: 0.9rem;
+    }
+
+    a:hover {
+      color: #00cc00;
     }
   </style>
 </head>
 <body>
 
 <div class="register-card text-center">
-  <h3 class="mb-4">Register</h3>
+  <h3 class="mb-4">REGISTER</h3>
 
   <input type="text" id="name" class="form-control mb-3" placeholder="Enter Name" required>
-  <input type="tel" id="phone" class="form-control mb-3" placeholder="Enter Phone Number" required>
+  <input type="email" id="email" class="form-control mb-3" placeholder="Enter Email Address" required>
 
   <button class="btn btn-custom w-100 mb-2" onclick="register()">Register</button>
   <p id="registerMessage"></p>
@@ -61,30 +82,34 @@
 
 <script>
 function register() {
-    const name = document.getElementById('name').value.trim();
-    const phone = document.getElementById('phone').value.trim();
+  const name = document.getElementById('name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const msg = document.getElementById('registerMessage');
 
-    const msg = document.getElementById('registerMessage');
-    msg.textContent = "";
-    
-    if (!name || !phone) {
-        msg.textContent = "Please fill out all fields.";
-        msg.style.color = "yellow";
-        return;
-    }
+  msg.textContent = "";
 
-    axios.post('/register', {
-        name: name,
-        phone: phone
-    })
-    .then(response => {
-        msg.textContent = response.data.message || "Registration successful!";
-        msg.style.color = "lime";
-    })
-    .catch(error => {
-        msg.textContent = error.response?.data?.error || "Registration failed.";
-        msg.style.color = "red";
-    });
+  if (!name || !email) {
+    msg.textContent = "Please fill out all fields.";
+    msg.style.color = "yellow";
+    return;
+  }
+
+  axios.post('/register', {
+    name: name,
+    phone: email,  // fallback if backend expects phone
+    email: email
+  })
+  .then(response => {
+    msg.textContent = response.data.message || "Registration successful!";
+    msg.style.color = "lime";
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 1500); // Redirect to login after 1.5 seconds
+  })
+  .catch(error => {
+    msg.textContent = error.response?.data?.error || "Registration failed.";
+    msg.style.color = "red";
+  });
 }
 </script>
 

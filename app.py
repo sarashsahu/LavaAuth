@@ -1,23 +1,22 @@
-import requests
-import sqlite3
-import hashlib
-import cv2
 import os
 import time
-import urllib.parse
+import hashlib
+import sqlite3
+import smtplib
+import cv2
+from email.mime.text import MIMEText
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 
-# Load environment variables from .env
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 
-# Global code and timer
 current_code = None
 last_generated_time = 0
 
-# Database setup
+# --- Database Setup ---
 def init_db():
     conn = sqlite3.connect('users.db')
     cursor = conn.cursor()
@@ -25,8 +24,9 @@ def init_db():
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            phone TEXT UNIQUE NOT NULL,
-            codes TEXT
+            email TEXT UNIQUE NOT NULL,
+            codes TEXT,
+            code_time INTEGER
         )
     ''')
     conn.commit()
@@ -34,69 +34,116 @@ def init_db():
 
 init_db()
 
-# Database helpers
-def get_user_by_phone(phone):
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM users WHERE phone = ?', (phone,))
-    user = cursor.fetchone()
-    conn.close()
-    return user
+# --- Database Helpers ---
+def get_user_by_email(email):
+    with sqlite3.connect('users.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+        return cursor.fetchone()
 
-def add_user(name, phone):
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    cursor.execute('INSERT INTO users (name, phone, codes) VALUES (?, ?, ?)', (name, phone, ""))
-    conn.commit()
-    conn.close()
+def add_user(name, email):
+    with sqlite3.connect('users.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO users (name, email, codes, code_time) VALUES (?, ?, ?, ?)',
+                       (name, email, "", 0))
+        conn.commit()
 
-def update_user_codes(phone, code):
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    cursor.execute('UPDATE users SET codes = ? WHERE phone = ?', (code, phone))
-    conn.commit()
-    conn.close()
+def update_user_codes(email, code):
+    with sqlite3.connect('users.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET codes = ?, code_time = ? WHERE email = ?',
+                       (code, int(time.time()), email))
+        conn.commit()
 
-# Code generation using camera frame
+# --- Email Code Sender ---
+def send_email_code(to_email, code):
+    sender_email = os.getenv("EMAIL_ADDRESS", "").strip()
+    password     = os.getenv("EMAIL_PASSWORD",  "").strip()
+
+    if not sender_email or not password:
+        print("❌ EMAIL_ADDRESS or EMAIL_PASSWORD not set in .env")
+        return
+
+    # debug:
+    print(f"🔒 SMTP creds → {sender_email}, pwd={password[:4]}…{password[-4:]}")
+
+    msg = MIMEText(f"Your login code is: {code}")
+    msg['Subject'] = "Your Authentication Code"
+    msg['From']    = sender_email
+    msg['To']      = to_email
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(sender_email, password)
+            server.send_message(msg)
+        print(f"✅ Code sent to {to_email}")
+    except Exception as e:
+        print(f"❌ Failed to send email: {e}")
+
+
+# --- Bubble Detection and Code Generation ---
+def generate_code(bubble_data):
+    bubble_string = "".join([f"{x}_{y}_{r}" for x, y, r in bubble_data])
+    hashed_code = hashlib.sha256(bubble_string.encode()).hexdigest()[:8]
+    return hashed_code
+
+def detect_bubbles(frame):
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (11, 11), 0)
+    _, thresh = cv2.threshold(blurred, 50, 255, cv2.THRESH_BINARY)
+    edges = cv2.Canny(thresh, 30, 150)
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    bubble_data = []
+    for contour in contours:
+        ((x, y), radius) = cv2.minEnclosingCircle(contour)
+        area = cv2.contourArea(contour)
+        if radius > 20 and area > 300:
+            bubble_data.append((int(x), int(y), int(radius)))
+            cv2.circle(frame, (int(x), int(y)), int(radius), (0, 255, 0), 2)
+
+    return frame, bubble_data
+
 def generate_code_from_frame():
     cap = None
     for i in range(5):
-        cap = cv2.VideoCapture(i, cv2.CAP_DSHOW)
-        if cap.isOpened():
+        temp_cap = cv2.VideoCapture(i)
+        if temp_cap.isOpened():
+            cap = temp_cap
             break
+        temp_cap.release()
 
     if not cap or not cap.isOpened():
-        print("Camera not accessible. Falling back to random code.")
+        print("❌ Camera not accessible.")
         return None
 
-    print("Warming up camera...")
+    print("📷 Warming up camera...")
     for _ in range(20):
-        ret, frame = cap.read()
+        ret, _ = cap.read()
         if not ret:
             continue
-        time.sleep(0.1)
+        time.sleep(0.05)
 
     ret, frame = cap.read()
     cap.release()
 
     if not ret:
-        print("Failed to read frame from camera. Falling back to random code.")
+        print("❌ Failed to read final frame.")
         return None
 
-    small = cv2.resize(frame, (64, 64))
-    encoded = small.tobytes()
-    code = hashlib.sha256(encoded).hexdigest()[:8]
-    print(f"Generated code from camera: {code}")
-    return code
+    processed_frame, bubble_data = detect_bubbles(frame)
+    if bubble_data and len(bubble_data) >= 3:
+        code = generate_code(bubble_data)
+        print("Generated Code:", code)
+        return code
+    else:
+        print("❌ No valid bubble data detected.")
+        return None
 
-# Fallback random code generator
 def generate_random_code():
-    random_bytes = os.urandom(64)
-    code = hashlib.sha256(random_bytes).hexdigest()[:8]
-    print(f"Generated random code: {code}")
-    return code
+    return hashlib.sha256(os.urandom(64)).hexdigest()[:8]
 
-# Routes
+# --- Routes ---
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -112,34 +159,30 @@ def visual_code():
 @app.route('/live_code')
 def live_code():
     global current_code, last_generated_time
-    try:
-        now = time.time()
-        if not current_code or (now - last_generated_time > 30):
-            code = generate_code_from_frame()
-            if not code:
-                code = generate_random_code()
-            current_code = code
-            last_generated_time = now
-            print(f"New code generated at {time.ctime(now)}: {current_code}")
-        else:
-            print(f"Returning cached code at {time.ctime(now)}: {current_code}")
+    now = time.time()
 
-        return jsonify({"code": current_code})
-    
-    except Exception as e:
-        print(f"Error in /live_code: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+    if not current_code or (now - last_generated_time > 30):
+        code = generate_code_from_frame()
+        if code:
+            print("✅ Code generated from camera.")
+        else:
+            code = generate_random_code()
+            print("⚠️ Fallback: Code generated from random entropy.")
+        current_code = code
+        last_generated_time = now
+
+    return jsonify({"code": current_code})
 
 @app.route('/register', methods=['POST'])
 def register():
     try:
         name = request.json.get('name')
-        phone = request.json.get('phone')
+        email = request.json.get('email')
 
-        if get_user_by_phone(phone):
-            return jsonify({"error": "Phone number already registered."}), 400
+        if get_user_by_email(email):
+            return jsonify({"error": "Email already registered."}), 400
 
-        add_user(name, phone)
+        add_user(name, email)
         return jsonify({"message": "Registration successful."})
     except Exception as e:
         print(f"Error in /register: {e}")
@@ -148,79 +191,42 @@ def register():
 @app.route('/start_detection', methods=['POST'])
 def start_detection():
     try:
-        phone = request.json.get("phone")
-        if not phone:
-            return jsonify({"error": "Phone number is required."}), 400
+        email = request.json.get("email")
+        if not email:
+            return jsonify({"error": "Email is required."}), 400
 
-        user = get_user_by_phone(phone)
-        if not user:
-            return jsonify({"error": "User not registered."}), 400
+        if not get_user_by_email(email):
+            return jsonify({"status": "unregistered"}), 200
 
         global current_code, last_generated_time
+        now = time.time()
 
-        if not current_code or (time.time() - last_generated_time > 30):
-            print(f"Generating new code for phone: {phone}")  # Log for debugging
+        if not current_code or (now - last_generated_time > 30):
             code = generate_code_from_frame()
-            if not code:
+            if code:
+                print("✅ Code generated from camera.")
+            else:
                 code = generate_random_code()
+                print("⚠️ Fallback: Code generated from random entropy.")
             current_code = code
-            last_generated_time = time.time()
-            print(f"Generated new code in /start_detection: {current_code}")
-        else:
-            code = current_code
-            print(f"Reusing cached code in /start_detection: {current_code}")
+            last_generated_time = now
 
-        update_user_codes(phone, code)
+        update_user_codes(email, current_code)
+        send_email_code(email, current_code)
 
-        # Send SMS using Fast2SMS
-        FAST2SMS_API_KEY = os.getenv("FAST2SMS_API_KEY")
-
-        if not FAST2SMS_API_KEY:
-            print("FAST2SMS_API_KEY not found in environment.")
-            return jsonify({"error": "SMS service not configured."}), 500
-
-        url = "https://www.fast2sms.com/dev/bulkV2"
-        payload = {
-            "authorization": FAST2SMS_API_KEY,
-            "sender_id": "TXTIND",  # Replace with your DLT-approved sender ID
-            "message": f"Your login code is: {code}",
-            "variables_values": "",  # Optional: Add any dynamic variables if needed
-            "route": "dlt",  # Use 'dlt' for transactional messages
-            "numbers": phone
-        }
-
-        response = requests.get(url, params=payload)
-
-        print(f"Fast2SMS Response: {response.status_code} - {response.text}")  # Log response
-
-        if response.status_code == 200:
-            print("SMS sent successfully.")
-            return jsonify({"message": "Code sent successfully."})
-        else:
-            try:
-                error_data = response.json()  # Assuming the response is JSON
-                print(f"Failed to send SMS: {error_data['message']}")
-                return jsonify({"error": f"Failed to send SMS: {error_data.get('message', 'Unknown error')}"}), 500
-            except ValueError:
-                # If the response is not JSON, handle it as plain text
-                print(f"Failed to send SMS, response is not in JSON format: {response.text}")
-                return jsonify({"error": f"Failed to send SMS, response: {response.text}"}), 500
-
+        return jsonify({"status": "success", "message": "Code sent successfully via email."})
     except Exception as e:
         print(f"Error in /start_detection: {e}")
         return jsonify({"error": "Failed to send code"}), 500
-    
+
 @app.route('/admin_users')
 def admin_users():
     try:
-        conn = sqlite3.connect('users.db')
-        cursor = conn.cursor()
-        cursor.execute('SELECT id, name, phone, codes FROM users')
-        users = cursor.fetchall()
-        conn.close()
-
+        with sqlite3.connect('users.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, email, codes FROM users')
+            users = cursor.fetchall()
         return render_template('admin_users.html', users=users)
-
     except Exception as e:
         print(f"Error in /admin_users: {e}")
         return "Error loading admin dashboard."
@@ -229,13 +235,10 @@ def admin_users():
 def delete_user():
     try:
         user_id = request.form.get('user_id')
-
-        conn = sqlite3.connect('users.db')
-        cursor = conn.cursor()
-        cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
-        conn.commit()
-        conn.close()
-
+        with sqlite3.connect('users.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            conn.commit()
         return '<script>window.location.href="/admin_users";</script>'
     except Exception as e:
         print(f"Error in /delete_user: {e}")
@@ -245,16 +248,19 @@ def delete_user():
 def login():
     try:
         data = request.get_json()
-        phone = data.get('phone')
+        email = data.get('email')
         entered_code = data.get('code')
 
-        user = get_user_by_phone(phone)
+        user = get_user_by_email(email)
         if not user:
             return jsonify({"error": "User not found."}), 404
 
-        stored_code = user[3]
+        stored_code = user[3]  # codes column
 
-        if entered_code == stored_code:
+        if not stored_code:
+            return jsonify({"error": "No code stored for user."}), 400
+
+        if entered_code.strip() == stored_code.strip():
             return jsonify({"message": "Login successful!"})
         else:
             return jsonify({"error": "Invalid code."}), 400

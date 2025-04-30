@@ -6,45 +6,142 @@
   <title>Lava Lamp Code Generator</title>
   <style>
     body {
-      background: black;
-      color: lime;
-      text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: #000;
+      color: #00ff00;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+    }
+
+    h1 {
+      margin-top: 30px;
+      font-size: 1.8em;
+      border-bottom: 2px solid #00ff00;
+      padding-bottom: 5px;
+    }
+
+    .code-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 20px 0 30px;
+      width: 90%;
+      max-width: 750px;
+    }
+
+    #code {
+      font-size: 1.1em;
+      padding: 20px;
+      background-color: #000;
+      border: 1px dashed #00ff00;
+      color: #00ff00;
+      width: 100%;
+      min-height: 0px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      text-align: left;
+      margin-bottom: 10px;
+      position: relative;
+    }
+
+    .cursor {
+      display: inline-block;
+      background-color: #00ff00;
+      width: 10px;
+      height: 1em;
+      margin-left: 2px;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% {
+        opacity: 0;
+      }
+    }
+
+    #copyBtn {
+      padding: 8px 20px;
+      font-size: 1em;
+      border: 1px solid #00ff00;
+      background: #000;
+      color: #00ff00;
+      cursor: pointer;
       font-family: monospace;
     }
-    video {
-      width: 80%;
-      border: 2px solid lime;
-      margin-top: 20px;
+
+    #copyBtn:hover {
+      background: #003300;
     }
-    h1 {
-      margin-top: 20px;
+
+    video {
+      width: 90%;
+      max-width: 800px;
+      border: 2px solid #00ff00;
+      margin-bottom: 40px;
     }
   </style>
 </head>
 <body>
 
-<h1>Generated Code:</h1>
-<h2 id="code">Loading...</h2>
-<video id="lavaFeed" autoplay></video>
+  <h1>Lava Lamp Code Generator</h1>
 
-<script>
-  // Display webcam feed
-  const video = document.getElementById('lavaFeed');
-  navigator.mediaDevices.getUserMedia({ video: true })
-    .then(stream => video.srcObject = stream)
-    .catch(err => console.error("Camera access denied:", err));
+  <div class="code-container">
+    <pre id="code"><span id="typedText"></span><span class="cursor"></span></pre>
+    <button id="copyBtn">COPY</button>
+  </div>
 
-  // Fetch code from server
-  function refreshCode() {
-    fetch('/live_code')
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById('code').innerText = data.code;
+  <video id="lavaFeed" autoplay muted></video>
+
+  <script>
+    const video = document.getElementById('lavaFeed');
+    const codeDisplay = document.getElementById('typedText');
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => video.srcObject = stream)
+      .catch(err => {
+        codeDisplay.innerText = 'Error: Camera access denied.';
+        console.error("Camera access denied:", err);
       });
-  }
 
-  setInterval(refreshCode, 3000); // every 3 seconds
-</script>
+    function typeText(element, text, delay = 15) {
+      element.innerText = ''; // Clear before typing
+      let i = 0;
+      const typeInterval = setInterval(() => {
+        element.innerText += text.charAt(i);
+        i++;
+        if (i >= text.length) clearInterval(typeInterval);
+      }, delay);
+    }
+
+    function refreshCode() {
+      fetch('/live_code')
+        .then(res => res.json())
+        .then(data => {
+          typeText(codeDisplay, data.code);
+        })
+        .catch(() => {
+          typeText(codeDisplay, 'Error: Could not fetch code.');
+        });
+    }
+
+    setInterval(refreshCode, 3000);
+    refreshCode();
+
+    // Copy button functionality
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      const codeText = codeDisplay.innerText;
+      navigator.clipboard.writeText(codeText).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.innerText = 'COPIED!';
+        setTimeout(() => btn.innerText = 'COPY', 1500);
+      });
+    });
+  </script>
 
 </body>
 </html>
