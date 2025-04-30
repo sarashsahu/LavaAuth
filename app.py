@@ -4,6 +4,7 @@ import hashlib
 import sqlite3
 import smtplib
 import cv2
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
@@ -71,20 +72,47 @@ def send_email_code(to_email, code):
         return
 
     username = user[1]  # name column
-    msg = MIMEText(f"""\
-        Hello {username}!,
 
-        Your login code is: {code}
+    msg = MIMEMultipart("alternative")
+    msg['Subject'] = "🔐 Your One-Time Login Code"
+    msg['From'] = formataddr(("LavaAuth Team", sender_email))
+    msg['To'] = to_email
 
-        Please note that this code will expire in 30 seconds.
+    text = f"""
+Hi {username},
 
-        Thank you,
-        LavaAuth Team
-        """)
+Your login code is: {code}
 
-    msg['Subject'] = "Your Authentication Code"
-    msg['From']    = formataddr(("No Reply-LavaAuth Team", sender_email))
-    msg['To']      = to_email
+This code will expire in 30 seconds.
+
+If you did not request this, you can safely ignore it.
+
+Thanks,
+LavaAuth Team
+"""
+
+    html = f"""
+<html>
+  <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
+    <div style="max-width: 500px; margin: auto; background-color: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 0 10px #ccc;">
+      <h2 style="color: #333;">Hello <span style="color: #4CAF50;">{username}</span> 👋,</h2>
+      <p style="font-size: 16px;">Here is your one-time login code:</p>
+      <div style="font-size: 24px; font-weight: bold; background-color: #e8f5e9; padding: 10px; border-radius: 5px; text-align: center; color: #2e7d32;">
+        {code}
+      </div>
+      <p style="margin-top: 20px; font-size: 14px; color: #666;">
+        ⚠️ This code will expire in <strong>30 seconds</strong>.
+      </p>
+      <hr />
+      <p style="font-size: 12px; color: #999;">If you didn’t request this code, you can safely ignore this message.</p>
+      <p style="font-size: 14px; color: #333;">Cheers,<br><strong>LavaAuth Team</strong></p>
+    </div>
+  </body>
+</html>
+"""
+
+    msg.attach(MIMEText(text, "plain"))
+    msg.attach(MIMEText(html, "html"))
 
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
@@ -93,8 +121,6 @@ def send_email_code(to_email, code):
         print(f"✅ Code sent to {to_email}")
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
-
-
 
 # --- Bubble Detection and Code Generation ---
 def generate_code(bubble_data):
