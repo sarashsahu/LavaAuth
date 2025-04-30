@@ -7,6 +7,7 @@ import cv2
 from email.mime.text import MIMEText
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
+from email.utils import formataddr
 
 # Load environment variables
 load_dotenv()
@@ -70,7 +71,6 @@ def send_email_code(to_email, code):
         return
 
     username = user[1]  # name column
-
     msg = MIMEText(f"""\
         Hello {username}!,
 
@@ -83,7 +83,7 @@ def send_email_code(to_email, code):
         """)
 
     msg['Subject'] = "Your Authentication Code"
-    msg['From']    = sender_email
+    msg['From']    = formataddr(("No Reply-LavaAuth Team", sender_email))
     msg['To']      = to_email
 
     try:
