@@ -58,16 +58,30 @@ def update_user_codes(email, code):
 # --- Email Code Sender ---
 def send_email_code(to_email, code):
     sender_email = os.getenv("EMAIL_ADDRESS", "").strip()
-    password     = os.getenv("EMAIL_PASSWORD",  "").strip()
+    password     = os.getenv("EMAIL_PASSWORD", "").strip()
 
     if not sender_email or not password:
         print("❌ EMAIL_ADDRESS or EMAIL_PASSWORD not set in .env")
         return
 
-    # debug:
-    print(f"🔒 SMTP creds → {sender_email}, pwd={password[:4]}…{password[-4:]}")
+    user = get_user_by_email(to_email)
+    if not user:
+        print(f"❌ No user found with email {to_email}")
+        return
 
-    msg = MIMEText(f"Your login code is: {code}")
+    username = user[1]  # name column
+
+    msg = MIMEText(f"""\
+        Hello {username}!,
+
+        Your login code is: {code}
+
+        Please note that this code will expire in 30 seconds.
+
+        Thank you,
+        LavaAuth Team
+        """)
+
     msg['Subject'] = "Your Authentication Code"
     msg['From']    = sender_email
     msg['To']      = to_email
@@ -79,6 +93,7 @@ def send_email_code(to_email, code):
         print(f"✅ Code sent to {to_email}")
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
+
 
 
 # --- Bubble Detection and Code Generation ---
@@ -177,7 +192,7 @@ def live_code():
 def register():
     try:
         name = request.json.get('name')
-        email = request.json.get('email')
+        email = request.json.get('email', '').strip().lower()
 
         if get_user_by_email(email):
             return jsonify({"error": "Email already registered."}), 400

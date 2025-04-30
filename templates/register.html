@@ -83,10 +83,12 @@
 <script>
 function register() {
   const name = document.getElementById('name').value.trim();
-  const email = document.getElementById('email').value.trim();
+  const email = document.getElementById('email').value.trim().toLowerCase();
   const msg = document.getElementById('registerMessage');
 
   msg.textContent = "";
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   if (!name || !email) {
     msg.textContent = "Please fill out all fields.";
@@ -94,9 +96,14 @@ function register() {
     return;
   }
 
+  if (!emailRegex.test(email)) {
+    msg.textContent = "Please enter a valid email address.";
+    msg.style.color = "yellow";
+    return;
+  }
+
   axios.post('/register', {
     name: name,
-    phone: email,  // fallback if backend expects phone
     email: email
   })
   .then(response => {
@@ -104,13 +111,22 @@ function register() {
     msg.style.color = "lime";
     setTimeout(() => {
       window.location.href = "/";
-    }, 1500); // Redirect to login after 1.5 seconds
+    }, 1500);
   })
   .catch(error => {
     msg.textContent = error.response?.data?.error || "Registration failed.";
     msg.style.color = "red";
   });
 }
+
+// Auto-capitalize first letter of each word in the name input
+document.getElementById('name').addEventListener('blur', function () {
+  this.value = this.value
+    .trim()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+});
 </script>
 
 </body>
