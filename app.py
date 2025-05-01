@@ -6,7 +6,7 @@ import smtplib
 import cv2
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 from email.utils import formataddr
 
@@ -272,6 +272,10 @@ def admin_users():
         print(f"Error in /admin_users: {e}")
         return "Error loading admin dashboard."
 
+@app.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html')
+
 @app.route('/delete_user', methods=['POST'])
 def delete_user():
     try:
@@ -309,5 +313,20 @@ def login():
         print(f"Error in /login: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+@app.route('/logout')
+def logout():
+    session.clear()  # Clear any session data
+    return redirect(url_for('login'))  # Redirect user to login page
+
+@app.after_request
+def add_cache_control_headers(response):
+    # Prevent caching of sensitive pages like the dashboard
+    if request.endpoint in ['dashboard', 'admin_users']:
+        response.cache_control.no_cache = True
+        response.cache_control.no_store = True
+        response.cache_control.must_revalidate = True
+    return response
+
 if __name__ == '__main__':
     app.run(debug=True)
+    

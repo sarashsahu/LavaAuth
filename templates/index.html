@@ -89,7 +89,6 @@
 
     <!-- Additional buttons -->
     <button class="btn btn-secondary-custom w-100 mt-3" onclick="window.location.href='/register_page'">Register</button>
-    <button class="btn btn-secondary-custom w-100 mt-3" onclick="window.location.href='/visual_code'">Live Server Feed</button>
   </div>
 
   <script>
@@ -132,32 +131,41 @@
     }
 
     function login() {
-      const email = document.getElementById('emailInput').value.trim();
-      const code = document.getElementById('codeInput').value.trim();
-      const msg = document.getElementById('loginMessage');
+  const email = document.getElementById('emailInput').value.trim();
+  const code = document.getElementById('codeInput').value.trim();
+  const msg = document.getElementById('loginMessage');
 
-      if (!email) {
-        msg.textContent = "Please enter a valid email address.";
-        msg.style.color = "yellow";
-        return;
-      }
+  if (!email) {
+    msg.textContent = "Please enter a valid email address.";
+    msg.style.color = "yellow";
+    return;
+  }
 
-      if (!code) {
-        msg.textContent = "Please enter the code.";
-        msg.style.color = "yellow";
-        return;
-      }
+  if (!code) {
+    msg.textContent = "Please enter the code.";
+    msg.style.color = "yellow";
+    return;
+  }
 
-      axios.post('/login', { email: email, code: code })
-        .then(response => {
-          msg.textContent = response.data.message || "Login successful!";
-          msg.style.color = "lime";
-        })
-        .catch(() => {
-          msg.textContent = "Invalid Code!";
-          msg.style.color = "red";
-        });
-    }
+  axios.post('/login', { email: email, code: code })
+    .then(response => {
+      msg.textContent = response.data.message || "Login successful!";
+      msg.style.color = "lime";
+
+      // Save user email in localStorage
+      localStorage.setItem('loggedInUserEmail', email);
+
+      // Redirect to dashboard
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1000);
+    })
+    .catch(() => {
+      msg.textContent = "Invalid Code!";
+      msg.style.color = "red";
+    });
+}
+
   </script>
 </body>
 </html>
