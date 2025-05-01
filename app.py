@@ -244,7 +244,7 @@ def start_detection():
         update_user_codes(email, current_code)
         send_email_code(email, current_code)
 
-        return jsonify({"status": "success", "message": "Code sent successfully via email. \n Check your spam folder if you don't see it in your inbox."})
+        return jsonify({"status": "success", "message": "Code sent successfully via email."})
     except Exception as e:
         print(f"Error in /start_detection: {e}")
         return jsonify({"error": "Failed to send code"}), 500
@@ -263,7 +263,17 @@ def admin_users():
 
 @app.route('/dashboard')
 def dashboard():
-    return render_template('dashboard.html')
+    email = session.get('email')
+    if not email:
+        return redirect(url_for('index'))
+    
+    user = get_user_by_email(email)
+    if not user:
+        return redirect(url_for('index'))
+    
+    username = user[1]
+    return render_template('dashboard.html', username=username)
+
 
 @app.route('/delete_user', methods=['POST'])
 def delete_user():
