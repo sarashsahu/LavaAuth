@@ -5,21 +5,56 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Lava Lamp Code Generator</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       padding: 0;
       background-color: #000;
       background-image: url("../assets/server.gif");
-      background-size: cover; /* Optional: makes sure the image covers the whole body */
-      background-repeat: no-repeat; /* Optional: prevents repeating the image */
-      background-position: center; /* Optional: centers the image */
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-position: center;
       color: #00ff00;
       font-family: 'Courier New', Courier, monospace;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
       min-height: 100vh;
+    }
+
+    nav {
+      width: 100%;
+      background-color: #001100;
+      padding: 10px 20px;
+      border-bottom: 2px solid #00ff00;
+    }
+
+    nav .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    nav .brand {
+      font-size: 1.2em;
+      font-weight: bold;
+      color: #00ff00;
+    }
+
+    nav .links a {
+      color: #00ff00;
+      text-decoration: none;
+      margin-left: 20px;
+      font-weight: bold;
+    }
+
+    nav .links a:hover {
+      text-decoration: underline;
     }
 
     h1 {
@@ -45,7 +80,7 @@
       border: 1px dashed #00ff00;
       color: #00ff00;
       width: 100%;
-      min-height: 0px;
+      min-height: 50px;
       white-space: pre-wrap;
       word-break: break-word;
       text-align: left;
@@ -92,13 +127,25 @@
 </head>
 <body>
 
-  <h1>Lava Lamp Code Generator</h1>
+  <!-- Navbar -->
+  <nav>
+    <div class="container">
+      <div class="brand">LavaAuth Server</div>
+      <div class="links">
+        <a href="/dashboard">Dashboard</a>
+        <a href="/admin_users">Users DB</a>
+        <a href="#" onclick="logout()">Logout</a>
+      </div>
+    </div>
+  </nav>
 
+  <!-- Code Display -->
   <div class="code-container">
     <pre id="code"><span id="typedText"></span><span class="cursor"></span></pre>
     <button id="copyBtn">COPY</button>
   </div>
 
+  <!-- Lava Lamp Camera Feed -->
   <video id="lavaFeed" autoplay muted></video>
 
   <script>
@@ -106,19 +153,21 @@
     const codeDisplay = document.getElementById('typedText');
 
     navigator.mediaDevices.getUserMedia({ video: true })
-      .then(stream => video.srcObject = stream)
+      .then(stream => {
+        video.srcObject = stream;
+      })
       .catch(err => {
         codeDisplay.innerText = 'Error: Camera access denied.';
         console.error("Camera access denied:", err);
       });
 
     function typeText(element, text, delay = 15) {
-      element.innerText = ''; // Clear before typing
+      element.innerText = '';
       let i = 0;
-      const typeInterval = setInterval(() => {
+      const interval = setInterval(() => {
         element.innerText += text.charAt(i);
         i++;
-        if (i >= text.length) clearInterval(typeInterval);
+        if (i >= text.length) clearInterval(interval);
       }, delay);
     }
 
@@ -136,15 +185,19 @@
     setInterval(refreshCode, 3000);
     refreshCode();
 
-    // Copy button functionality
     document.getElementById('copyBtn').addEventListener('click', () => {
-      const codeText = codeDisplay.innerText;
-      navigator.clipboard.writeText(codeText).then(() => {
+      const text = codeDisplay.innerText;
+      navigator.clipboard.writeText(text).then(() => {
         const btn = document.getElementById('copyBtn');
         btn.innerText = 'COPIED!';
         setTimeout(() => btn.innerText = 'COPY', 1500);
       });
     });
+
+    function logout() {
+      localStorage.removeItem('loggedInUserName');
+      window.location.href = '/';
+    }
   </script>
 
 </body>

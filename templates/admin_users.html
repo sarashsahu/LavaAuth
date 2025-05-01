@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="5">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta http-equiv="refresh" content="5" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard - Users</title>
   <style>
     body {
@@ -23,14 +23,19 @@
       border-bottom: 2px solid #00ff00;
     }
 
-    nav a {
+    nav .brand {
+      font-size: 1.2em;
+      font-weight: bold;
+    }
+
+    nav .links a {
       color: #00ff00;
       text-decoration: none;
       margin-left: 15px;
       font-weight: bold;
     }
 
-    nav a:hover {
+    nav .links a:hover {
       text-decoration: underline;
     }
 
@@ -85,10 +90,11 @@
 <body>
 
   <nav>
-    <div><strong>Admin Panel</strong></div>
-    <div>
-      <a href="/dashboard">← Back</a>
-      <a href="/">Logout</a>
+    <div class="brand">LavaAuth Users</div>
+    <div class="links">
+      <a href="/dashboard">Dashboard</a>
+      <a href="/visual_code">Server Feed</a>
+      <a href="#" onclick="logout()">Logout</a>
     </div>
   </nav>
 
@@ -121,6 +127,13 @@
       {% endfor %}
     </tbody>
   </table>
+
+  <script>
+    function logout() {
+      localStorage.removeItem('loggedInUserName');
+      window.location.href = '/';
+    }
+  </script>
 
 </body>
 </html>

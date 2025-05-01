@@ -12,27 +12,27 @@ from email.utils import formataddr
 
 # Load environment variables
 load_dotenv()
-
 app = Flask(__name__)
+app.secret_key = os.urandom(24)
 
+# Global code and timer
 current_code = None
 last_generated_time = 0
 
 # --- Database Setup ---
 def init_db():
-    conn = sqlite3.connect('users.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            codes TEXT,
-            code_time INTEGER
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('users.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                codes TEXT,
+                code_time INTEGER
+            )
+        ''')
+        conn.commit()
 
 init_db()
 
@@ -60,7 +60,7 @@ def update_user_codes(email, code):
 # --- Email Code Sender ---
 def send_email_code(to_email, code):
     sender_email = os.getenv("EMAIL_ADDRESS", "").strip()
-    password     = os.getenv("EMAIL_PASSWORD", "").strip()
+    password = os.getenv("EMAIL_PASSWORD", "").strip()
 
     if not sender_email or not password:
         print("❌ EMAIL_ADDRESS or EMAIL_PASSWORD not set in .env")
@@ -71,7 +71,7 @@ def send_email_code(to_email, code):
         print(f"❌ No user found with email {to_email}")
         return
 
-    username = user[1]  # name column
+    username = user[1]
 
     msg = MIMEMultipart("alternative")
     msg['Subject'] = "🔐 Your One-Time Login Code"
@@ -90,7 +90,6 @@ If you did not request this, you can safely ignore it.
 Thanks,
 LavaAuth Team
 """
-
     html = f"""
 <html>
   <body style="font-family: Arial, sans-serif; background-color: #f4f4f4; padding: 20px;">
@@ -104,13 +103,12 @@ LavaAuth Team
         ⚠️ This code will expire in <strong>30 seconds</strong>.
       </p>
       <hr />
-      <p style="font-size: 12px; color: #999;">If you didn’t request this code, you can safely ignore this message.</p>
+      <p style="font-size: 12px; color: #999;">If you didn’t request this code, you can safely ignore this message.<br>If you found this in Spam Kindly Unspam it.</p>
       <p style="font-size: 14px; color: #333;">Cheers,<br><strong>LavaAuth Team</strong></p>
     </div>
   </body>
 </html>
 """
-
     msg.attach(MIMEText(text, "plain"))
     msg.attach(MIMEText(html, "html"))
 
@@ -122,11 +120,10 @@ LavaAuth Team
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
 
-# --- Bubble Detection and Code Generation ---
+# --- Bubble Detection ---
 def generate_code(bubble_data):
     bubble_string = "".join([f"{x}_{y}_{r}" for x, y, r in bubble_data])
-    hashed_code = hashlib.sha256(bubble_string.encode()).hexdigest()[:8]
-    return hashed_code
+    return hashlib.sha256(bubble_string.encode()).hexdigest()[:8]
 
 def detect_bubbles(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -174,9 +171,7 @@ def generate_code_from_frame():
 
     processed_frame, bubble_data = detect_bubbles(frame)
     if bubble_data and len(bubble_data) >= 3:
-        code = generate_code(bubble_data)
-        print("Generated Code:", code)
-        return code
+        return generate_code(bubble_data)
     else:
         print("❌ No valid bubble data detected.")
         return None
@@ -204,11 +199,8 @@ def live_code():
 
     if not current_code or (now - last_generated_time > 30):
         code = generate_code_from_frame()
-        if code:
-            print("✅ Code generated from camera.")
-        else:
+        if not code:
             code = generate_random_code()
-            print("⚠️ Fallback: Code generated from random entropy.")
         current_code = code
         last_generated_time = now
 
@@ -244,18 +236,15 @@ def start_detection():
 
         if not current_code or (now - last_generated_time > 30):
             code = generate_code_from_frame()
-            if code:
-                print("✅ Code generated from camera.")
-            else:
+            if not code:
                 code = generate_random_code()
-                print("⚠️ Fallback: Code generated from random entropy.")
             current_code = code
             last_generated_time = now
 
         update_user_codes(email, current_code)
         send_email_code(email, current_code)
 
-        return jsonify({"status": "success", "message": "Code sent successfully via email."})
+        return jsonify({"status": "success", "message": "Code sent successfully via email. \n Check your spam folder if you don't see it in your inbox."})
     except Exception as e:
         print(f"Error in /start_detection: {e}")
         return jsonify({"error": "Failed to send code"}), 500
@@ -300,13 +289,19 @@ def login():
         if not user:
             return jsonify({"error": "User not found."}), 404
 
-        stored_code = user[3]  # codes column
+        stored_code = user[3]
+        code_time = user[4]
 
         if not stored_code:
             return jsonify({"error": "No code stored for user."}), 400
 
+        if int(time.time()) - int(code_time) > 30:
+            return jsonify({"error": "Code has expired."}), 400
+
         if entered_code.strip() == stored_code.strip():
-            return jsonify({"message": "Login successful!"})
+            username = user[1]
+            session['email'] = email
+            return jsonify({"message": "Login successful!", "username": username})
         else:
             return jsonify({"error": "Invalid code."}), 400
     except Exception as e:
@@ -315,12 +310,22 @@ def login():
 
 @app.route('/logout')
 def logout():
-    session.clear()  # Clear any session data
-    return redirect(url_for('login'))  # Redirect user to login page
+    try:
+        email = session.get('email')
+        if email:
+            with sqlite3.connect('users.db') as conn:
+                cursor = conn.cursor()
+                cursor.execute('UPDATE users SET codes = ?, code_time = ? WHERE email = ?',
+                               ("", 0, email))
+                conn.commit()
+        session.clear()
+        return redirect(url_for('index'))
+    except Exception as e:
+        print(f"Error in /logout: {e}")
+        return "Error during logout."
 
 @app.after_request
 def add_cache_control_headers(response):
-    # Prevent caching of sensitive pages like the dashboard
     if request.endpoint in ['dashboard', 'admin_users']:
         response.cache_control.no_cache = True
         response.cache_control.no_store = True
@@ -329,4 +334,3 @@ def add_cache_control_headers(response):
 
 if __name__ == '__main__':
     app.run(debug=True)
-    
