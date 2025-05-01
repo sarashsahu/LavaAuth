@@ -188,7 +188,7 @@
               <p id="currentDate"></p>
             </div>
           </div>
-      
+
           <!-- User Statistics -->
           <div class="card">
             <div class="card-body text-center">
@@ -210,100 +210,126 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-      let currentTimezone = "Asia/Kolkata";
+  let currentTimezone = "Asia/Kolkata";
 
-      function updateClock(timezone) {
-        const now = new Date().toLocaleString("en-US", { timeZone: timezone });
-        const date = new Date(now);
-        const h = date.getHours().toString().padStart(2, "0");
-        const m = date.getMinutes().toString().padStart(2, "0");
-        const s = date.getSeconds().toString().padStart(2, "0");
-        document.getElementById("liveClock").innerText = `${h}:${m}:${s}`;
-        document.getElementById(
-          "currentDate"
-        ).innerText = `Date: ${date.toLocaleDateString()}`;
-      }
+  function updateClock(timezone) {
+    const now = new Date().toLocaleString("en-US", { timeZone: timezone });
+    const date = new Date(now);
+    const h = date.getHours().toString().padStart(2, "0");
+    const m = date.getMinutes().toString().padStart(2, "0");
+    const s = date.getSeconds().toString().padStart(2, "0");
+    document.getElementById("liveClock").innerText = `${h}:${m}:${s}`;
+    document.getElementById("currentDate").innerText = `Date: ${date.toLocaleDateString()}`;
+  }
 
-      setInterval(() => updateClock(currentTimezone), 1000);
-      document
-        .getElementById("timezoneSelect")
-        .addEventListener("change", (e) => {
-          currentTimezone = e.target.value;
-        });
+  setInterval(() => updateClock(currentTimezone), 1000);
+  document.getElementById("timezoneSelect").addEventListener("change", (e) => {
+    currentTimezone = e.target.value;
+  });
 
-      // To-Do List Logic
-      document.getElementById("addTodo").addEventListener("click", () => {
-        const input = document.getElementById("todoInput");
-        const taskText = input.value.trim();
-        if (taskText) {
-          const li = document.createElement("li");
-          li.className = "list-group-item";
-          li.innerHTML = `
-        <span>${taskText}</span>
-        <div class="todo-buttons">
-          <button class="btn btn-sm btn-success complete-btn">Complete</button>
-          <button class="btn btn-sm btn-danger remove-btn">Remove</button>
-        </div>`;
-          document.getElementById("todoList").appendChild(li);
-          input.value = "";
-        }
+  // Load Todos from localStorage
+  function loadTodos() {
+    const saved = localStorage.getItem("todos");
+    if (saved) {
+      const todos = JSON.parse(saved);
+      todos.forEach(({ text, completed }) => {
+        addTodoItem(text, completed);
       });
+    }
+  }
 
-      document.getElementById("todoList").addEventListener("click", (e) => {
-        if (e.target.classList.contains("complete-btn")) {
-          e.target.closest("li").classList.toggle("completed");
-        } else if (e.target.classList.contains("remove-btn")) {
-          e.target.closest("li").remove();
-        }
+  function saveTodos() {
+    const todos = [];
+    document.querySelectorAll("#todoList .list-group-item").forEach((item) => {
+      todos.push({
+        text: item.querySelector("span").innerText,
+        completed: item.classList.contains("completed"),
       });
+    });
+    localStorage.setItem("todos", JSON.stringify(todos));
+  }
 
-      // Charts
-      document.addEventListener("DOMContentLoaded", () => {
-        updateClock(currentTimezone);
+  function addTodoItem(text, completed = false) {
+    const li = document.createElement("li");
+    li.className = "list-group-item" + (completed ? " completed" : "");
+    li.innerHTML = `
+      <span>${text}</span>
+      <div class="todo-buttons">
+        <button class="btn btn-sm btn-success complete-btn">Complete</button>
+        <button class="btn btn-sm btn-danger remove-btn">Remove</button>
+      </div>`;
+    document.getElementById("todoList").appendChild(li);
+  }
 
-        new Chart(document.getElementById("userChart"), {
-          type: "bar",
-          data: {
-            labels: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-            datasets: [
-              {
-                label: "Logins",
-                data: [5, 8, 4, 6, 7],
-                backgroundColor: "#00ff00",
-              },
-            ],
-          },
-          options: {
-            plugins: { legend: { labels: { color: "#00ff00" } } },
-            scales: {
-              x: { ticks: { color: "#00ff00" } },
-              y: { ticks: { color: "#00ff00" } },
-            },
-          },
-        });
+  // Event listeners
+  document.getElementById("addTodo").addEventListener("click", () => {
+    const input = document.getElementById("todoInput");
+    const taskText = input.value.trim();
+    if (taskText) {
+      addTodoItem(taskText);
+      input.value = "";
+      saveTodos();
+    }
+  });
 
-        new Chart(document.getElementById("timeChart"), {
-          type: "pie",
-          data: {
-            labels: ["Today", "Yesterday", "This Week"],
-            datasets: [
-              {
-                data: [30, 45, 25],
-                backgroundColor: ["#00ff00", "#004d00", "#007700"],
-              },
-            ],
-          },
-          options: {
-            plugins: { legend: { labels: { color: "#00ff00" } } },
-          },
-        });
-      });
+  document.getElementById("todoList").addEventListener("click", (e) => {
+    if (e.target.classList.contains("complete-btn")) {
+      e.target.closest("li").classList.toggle("completed");
+      saveTodos();
+    } else if (e.target.classList.contains("remove-btn")) {
+      e.target.closest("li").remove();
+      saveTodos();
+    }
+  });
 
-      function logout() {
-        localStorage.removeItem("loggedInUserName");
-        window.location.href = "/";
-      }
-    </script>
+  // Charts and Clock Init
+  document.addEventListener("DOMContentLoaded", () => {
+    updateClock(currentTimezone);
+    loadTodos();
+
+    new Chart(document.getElementById("userChart"), {
+      type: "bar",
+      data: {
+        labels: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        datasets: [
+          {
+            label: "Logins",
+            data: [5, 8, 4, 6, 7],
+            backgroundColor: "#00ff00",
+          },
+        ],
+      },
+      options: {
+        plugins: { legend: { labels: { color: "#00ff00" } } },
+        scales: {
+          x: { ticks: { color: "#00ff00" } },
+          y: { ticks: { color: "#00ff00" } },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("timeChart"), {
+      type: "pie",
+      data: {
+        labels: ["Today", "Yesterday", "This Week"],
+        datasets: [
+          {
+            data: [30, 45, 25],
+            backgroundColor: ["#00ff00", "#004d00", "#007700"],
+          },
+        ],
+      },
+      options: {
+        plugins: { legend: { labels: { color: "#00ff00" } } },
+      },
+    });
+  });
+
+  function logout() {
+    localStorage.removeItem("loggedInUserName");
+    window.location.href = "/";
+  }
+</script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   </body>
 </html>
